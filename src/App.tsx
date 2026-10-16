@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, parsePptx } from "./lib/parsePptx";
+import { applyTextEdits, suggestText } from "./lib/improveText";
+import TextReview from "./components/TextReview";
 import type { ParseProgress, Slide } from "./types";
 
 type IconName =
@@ -152,14 +154,14 @@ function Steps({ complete }: { complete: boolean }) {
         <span className="step-tag">{complete ? "DONE" : "START HERE"}</span>
       </li>
       <li className="step-line" aria-hidden="true" />
-      <li className="step future" aria-disabled="true">
+      <li className={complete ? "step active" : "step future"}>
         <span className="step-number">02</span>
-        <span>Find your vibe</span>
+        <span>Improve your text</span>
       </li>
       <li className="step-line" aria-hidden="true" />
-      <li className="step future" aria-disabled="true">
+      <li className="step future">
         <span className="step-number">03</span>
-        <span>Make it yours</span>
+        <span>Download your deck</span>
       </li>
     </ol>
   );
@@ -177,7 +179,7 @@ function downloadJson(slides: Slide[], filename: string) {
 }
 
 function ExtractedDeck({
-  slides,
+  slides: originalSlides,
   filename,
   warnings,
   onReset,
@@ -188,7 +190,70 @@ function ExtractedDeck({
   onReset: () => void;
 }) {
   const [selected, setSelected] = useState(0);
-  const [view, setView] = useState<"json" | "content">("json");
+  const [view, setView] = useState<"json" | "content" | "review">("review");
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
+  const [exportError, setExportError] = useState("");
+  const [prepared, setPrepared] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const slides = useMemo(
+    () => applyTextEdits(originalSlides, edits),
+    [originalSlides, edits],
+  );
+  const suggestions = useMemo(
+    () => suggestText(originalSlides),
+    [originalSlides],
+  );
+  const available = suggestions.filter(
+    (item) => item.original !== item.suggested,
+  ).length;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(
+    () => () => {
+      if (prepared) URL.revokeObjectURL(prepared);
+    },
+    [prepared],
+  );
+  function changeEdit(id: string, value?: string) {
+    setEdits((current) => {
+      const next = { ...current };
+      if (value === undefined) delete next[id];
+      else next[id] = value;
+      return next;
+    });
+    setPrepared(null);
+    setExportError("");
+  }
+  async function preparePowerPoint() {
+    setExportError("");
+    setExportProgress(0);
+    try {
+      const { exportPptx } = await import("./lib/exportPptx");
+      const data = await exportPptx(slides, (percent) => {
+        if (mounted.current) setExportProgress(percent);
+      });
+      if (mounted.current)
+        setPrepared(
+          URL.createObjectURL(
+            new Blob([data], {
+              type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            }),
+          ),
+        );
+    } catch {
+      if (mounted.current)
+        setExportError(
+          "We couldn’t rebuild this deck. An extracted image may be unsupported. You can still download the reviewed JSON or try another deck.",
+        );
+    } finally {
+      if (mounted.current) setExportProgress(null);
+    }
+  }
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus(), []);
   const current = slides[selected];
@@ -218,13 +283,24 @@ function ExtractedDeck({
             <Icon name="check" size={15} /> DECK UNPACKED
           </span>
           <h2 id="results-title" ref={heading} tabIndex={-1}>
-            Your story, extracted.
+            Your story, a little sharper.
           </h2>
           <p className="result-filename">{filename}</p>
         </div>
-        <button className="button button-secondary" onClick={onReset}>
+        <button
+          className="button button-secondary"
+          onClick={onReset}
+          disabled={exportProgress !== null}
+        >
           <Icon name="upload" size={16} /> Upload another
         </button>
+      </div>
+      <div className="review-summary">
+        <span>
+          <strong>{available}</strong> wording suggestions ·{" "}
+          <strong>{Object.keys(edits).length}</strong> edits selected
+        </span>
+        <span>Review each slide, then download your new version.</span>
       </div>
       <div className="deck-summary">
         <span>
@@ -288,6 +364,12 @@ function ExtractedDeck({
               aria-label="Content display"
             >
               <button
+                aria-pressed={view === "review"}
+                onClick={() => setView("review")}
+              >
+                Improve text
+              </button>
+              <button
                 aria-pressed={view === "json"}
                 onClick={() => setView("json")}
               >
@@ -309,6 +391,16 @@ function ExtractedDeck({
             >
               <code>{json}</code>
             </pre>
+          ) : view === "review" ? (
+            <TextReview
+              suggestions={suggestions.filter(
+                (item) => item.slideIndex === selected,
+              )}
+              edits={edits}
+              onApply={(id, value) => changeEdit(id, value)}
+              onKeep={(id) => changeEdit(id)}
+              disabled={exportProgress !== null}
+            />
           ) : (
             <article className="content-preview">
               <h3>{current.title || "Untitled slide"}</h3>
@@ -359,7 +451,9 @@ function ExtractedDeck({
           <div className="inspector-footnote">
             {view === "json"
               ? "Image data is shortened here. Download JSON for complete data URLs."
-              : "Content only. Original formatting, animations, and grouped shapes are skipped."}
+              : view === "review"
+                ? "Edits are optional. Unselected text, numbers, images, and notes are kept as extracted."
+                : "Content shows your selected edits. Original formatting is not retained."}
           </div>
         </div>
       </div>
@@ -367,19 +461,67 @@ function ExtractedDeck({
         <div>
           <Icon name="spark" size={18} />
           <span>
-            Ready for a new look.
+            Your words. Your choice.
             <small>
-              Vibe selection and PowerPoint export are coming in the next stage.
+              Download a new 16:9 deck with your selected edits. Dense content
+              may add continuation slides.
             </small>
           </span>
         </div>
-        <button
-          className="button button-primary"
-          onClick={() => downloadJson(slides, filename)}
-        >
-          <Icon name="download" size={16} /> Download JSON
-        </button>
+        <div className="download-actions">
+          <button
+            className="button button-secondary"
+            onClick={() => downloadJson(slides, filename)}
+          >
+            <Icon name="download" size={16} /> Download JSON
+          </button>
+          {prepared ? (
+            <a
+              className="button button-primary"
+              href={prepared}
+              download={`${filename.replace(/\.pptx$/i, "")}-improved.pptx`}
+            >
+              Download .pptx <Icon name="download" size={16} />
+            </a>
+          ) : (
+            <button
+              className="button button-primary"
+              disabled={exportProgress !== null}
+              onClick={() => void preparePowerPoint()}
+            >
+              {exportProgress === null
+                ? "Create new .pptx"
+                : `Building… ${exportProgress}%`}
+            </button>
+          )}
+        </div>
       </div>
+      <p className="export-note">
+        Rebuilt in a clean editorial style from extracted content. Original
+        formatting, grouped shapes, charts, and animations are not preserved.
+        Your source file stays untouched.
+      </p>
+      {exportProgress !== null && (
+        <div className="export-progress" role="status">
+          <span>Building your PowerPoint… {exportProgress}%</span>
+          <progress
+            aria-label="Generating PowerPoint"
+            max={100}
+            value={exportProgress}
+          />
+        </div>
+      )}
+      {prepared && (
+        <p className="export-ready" role="status">
+          Your new PowerPoint is ready. Tap “Download .pptx” to save it to your
+          device.
+        </p>
+      )}
+      {exportError && (
+        <p className="error-message" role="alert">
+          {exportError}
+        </p>
+      )}
     </section>
   );
 }
@@ -523,7 +665,7 @@ export default function App() {
           <div className="workspace-top">
             <Steps complete={!!slides} />
             <span className="workspace-status">
-              STEP 1 / CONTENT EXTRACTION
+              YOUR PRIVATE DECK WORKSPACE
             </span>
           </div>
           {slides ? (
@@ -572,7 +714,7 @@ export default function App() {
                   your deck.
                   <br />
                   <span className="stage-note-indent">
-                    The restyling magic comes next.
+                    Choose your edits. Download a fresh deck.
                   </span>
                 </div>
               </div>

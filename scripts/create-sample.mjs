@@ -83,7 +83,7 @@ intro.addText("Small ideas. Meaningful momentum.", {
   color: "53614D",
   margin: 0,
 });
-intro.addText("The quarterly story, minus the corporate wallpaper.", {
+intro.addText("In order to grow, we need to utilize what we learn.", {
   x: 0.7,
   y: 3,
   w: 10.5,

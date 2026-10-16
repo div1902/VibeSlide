@@ -2,7 +2,7 @@
 
 Make your deck look like you meant it.
 
-A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **This version implements Step 1 only: upload → parse → inspect extracted JSON.** No backend, account, API keys, external fonts, or file uploads are required.
+A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **Current flow: upload → review wording suggestions → download a rebuilt PowerPoint.** No backend, account, API keys, external fonts, or file uploads are required.
 
 ## Run locally
 
@@ -15,10 +15,14 @@ npm run dev
 
 Open the local address Vite prints (normally port 5173). Drop a `.pptx`, use **Choose a file**, or select **Try our sample**. The bundled `public/sample.pptx` is a real four-slide presentation with nested bullet levels, stats, an embedded image, and speaker notes.
 
-After parsing, select a slide to inspect its JSON or switch to **Content** to see extracted text and images. **Download JSON** exports the entire `Slide[]`, including complete image data URLs. Image data is abbreviated only in the on-screen JSON inspector. This is a content inspector, not a rendering of the original PowerPoint slide.
+After parsing, choose a slide and open **Improve text**. Review the original and suggested wording, optionally type your own version, then choose **Use this version** or **Keep original** for each title or text block. Suggestions use conservative English phrase substitutions locally; no AI service is called and no edits are automatically accepted. Text inside double quotes and URLs is left unchanged. Numbers and notes are not rewritten.
+
+Choose **Create new .pptx**, wait for generation, then tap **Download .pptx** to save the prepared file. This explicit download link works with mobile browsers, including Safari’s download flow. If you change a selected edit, generate a fresh file. With no selected edits, export rebuilds the extracted content as-is. The new deck uses a cream editorial design, Georgia/Arial fonts, and 16:9 pages. Dense text and extra images get continuation slides; original styling, charts, animations, and unsupported objects cannot be restored. The original file is untouched.
+
+Switch to **JSON** or **Content** to inspect the selected version. **Download JSON** exports the entire `Slide[]`, including complete image data URLs. Image data is abbreviated only in the on-screen JSON inspector. This is a content inspector, not a rendering of the original PowerPoint slide.
 
 ```sh
-npm test          # Parser regression tests, including the real sample fixture
+npm test          # Parsing, suggestions, layout pagination, and PPTX export tests
 npm run build    # Strict TypeScript check and production build into dist/
 npm run preview  # Serve the production build locally
 npm run fixture  # Regenerate public/sample.pptx with PptxGenJS
@@ -73,6 +77,11 @@ src/
   lib/
     parsePptx.ts          Read-only PowerPoint content extraction
     parsePptx.test.ts     Valid, malformed, and unsupported input coverage
+    improveText.ts       Local suggestions and immutable selected edits
+    layoutEngine.ts      Content pagination and export layout selection
+    exportPptx.ts        Rebuild the selected content with PptxGenJS
+  components/
+    TextReview.tsx       Per-field suggestion review and editing
 public/
   sample.pptx             Real four-slide fixture
   favicon.svg
@@ -80,7 +89,7 @@ scripts/
   create-sample.mjs       Rebuild the fixture using PptxGenJS
 ```
 
-JSZip, React, and React DOM are the only application dependencies. PptxGenJS is currently a development dependency for generating the fixture; it will become a runtime dependency when PowerPoint generation is implemented. Vitest and jsdom provide DOM-based parser tests. The lockfile is committed for repeatable installation.
+React, React DOM, JSZip, and PptxGenJS are the application dependencies. PptxGenJS is loaded on demand when you create a new PowerPoint and also generates the sample fixture. Vitest and jsdom provide DOM-based parser tests. The lockfile is committed for repeatable installation.
 
 ## Deploy to Vercel
 
@@ -92,4 +101,4 @@ The `dist/` directory can also be served by any static host. Use HTTPS in produc
 
 ## Next stages
 
-The remaining work is intentionally deferred: one vibe + three layouts + PowerPoint download, then all six vibes and content-driven layouts, shared preview rendering and comparison slider, custom palettes from images, and roast/share cards. `layoutEngine.ts` and its tests belong to the next stage. The landing artwork is illustrative; vibe selection and restyled `.pptx` export are not enabled in this version.
+The six selectable vibes, shared slide preview rendering, comparison slider, custom image palettes, and roast/share cards remain future stages. The current export provides one editorial design with title, text, split-image, and image layouts. The landing artwork is illustrative.
