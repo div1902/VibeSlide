@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { exportPptx } from "./exportPptx";
+import { createScene } from "./designScene";
+import { layoutDeck } from "./layoutEngine";
+import { designs } from "../vibes";
 describe("PowerPoint export", () => {
   it("creates a real wide-screen deck with selected text, notes, and media", async () => {
     const fixture = await JSZip.loadAsync(await readFile("public/sample.pptx"));
@@ -46,4 +49,35 @@ describe("PowerPoint export", () => {
   it("rejects empty decks", async () => {
     await expect(exportPptx([])).rejects.toThrow("no slides");
   });
+  for (const design of designs)
+    it(`writes ${design.id} preview text, colors, and geometry to the deck`, async () => {
+      const slides = [
+        {
+          title: "Same story",
+          bullets: [
+            { text: "Build what matters", level: 0 },
+            { text: "Keep every detail", level: 0 },
+          ],
+          images: [],
+          stats: [],
+          notes: "Keep notes",
+        },
+      ];
+      const scene = createScene(layoutDeck(slides)[0], design.id, "cards");
+      const data = await exportPptx(slides, undefined, {
+        designId: design.id,
+        layouts: { 0: "cards" },
+      });
+      const zip = await JSZip.loadAsync(data);
+      const xml = await zip.file("ppt/slides/slide1.xml")!.async("string");
+      expect(xml).toContain(`val="${scene.background}"`);
+      for (const element of scene.elements)
+        if (element.kind === "text") {
+          expect(xml).toContain(element.text);
+          expect(xml).toContain(`typeface="${element.font}"`);
+          expect(xml).toContain(
+            `x="${Math.round(element.x * 12700)}" y="${Math.round(element.y * 12700)}"`,
+          );
+        }
+    });
 });

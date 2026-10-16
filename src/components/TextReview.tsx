@@ -26,9 +26,7 @@ function SuggestionCard({
             : `Text block ${suggestion.bulletIndex + 1}`}
         </strong>
         <span>
-          {selected
-            ? "Selected for download"
-            : "Original will be used"}
+          {selected ? "Selected for download" : "Original will be used"}
         </span>
       </div>
       <div className="suggestion-comparison">

@@ -57,7 +57,20 @@ export function layoutDeck(slides: Slide[]): ExportPage[] {
       sourceSlide,
       layout: sourceSlide === 0 && body.length <= 2 ? "title" : "bullets",
     }));
-    if (
+    if (!body.length && slide.images.length > 1) {
+      pages[0].images = slide.images.slice(0, 2);
+      pages[0].layout = "images";
+      for (let index = 2; index < slide.images.length; index += 2)
+        pages.push({
+          title,
+          bullets: [],
+          stats: [],
+          images: slide.images.slice(index, index + 2),
+          notes: slide.notes,
+          sourceSlide,
+          layout: "images",
+        });
+    } else if (
       slide.images.length === 1 &&
       groups.length === 1 &&
       body.reduce((size, item) => size + item.text.length, 0) < 300

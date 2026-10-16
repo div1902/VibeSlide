@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, parsePptx } from "./lib/parsePptx";
 import { applyTextEdits, suggestText } from "./lib/improveText";
 import TextReview from "./components/TextReview";
+import DesignStudio from "./components/DesignStudio";
+import { recommendDesign, type DesignSelection } from "./lib/designScene";
 import type { ParseProgress, Slide } from "./types";
 
 type IconName =
@@ -156,7 +158,7 @@ function Steps({ complete }: { complete: boolean }) {
       <li className="step-line" aria-hidden="true" />
       <li className={complete ? "step active" : "step future"}>
         <span className="step-number">02</span>
-        <span>Improve your text</span>
+        <span>Choose your design</span>
       </li>
       <li className="step-line" aria-hidden="true" />
       <li className="step future">
@@ -192,6 +194,9 @@ function ExtractedDeck({
   const [selected, setSelected] = useState(0);
   const [view, setView] = useState<"json" | "content" | "review">("review");
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [designSelection, setDesignSelection] = useState<DesignSelection>(
+    () => ({ designId: recommendDesign(originalSlides).id, layouts: {} }),
+  );
   const [exportProgress, setExportProgress] = useState<number | null>(null);
   const [exportError, setExportError] = useState("");
   const [prepared, setPrepared] = useState<string | null>(null);
@@ -229,14 +234,23 @@ function ExtractedDeck({
     setPrepared(null);
     setExportError("");
   }
+  function changeDesign(next: DesignSelection) {
+    setDesignSelection(next);
+    setPrepared(null);
+    setExportError("");
+  }
   async function preparePowerPoint() {
     setExportError("");
     setExportProgress(0);
     try {
       const { exportPptx } = await import("./lib/exportPptx");
-      const data = await exportPptx(slides, (percent) => {
-        if (mounted.current) setExportProgress(percent);
-      });
+      const data = await exportPptx(
+        slides,
+        (percent) => {
+          if (mounted.current) setExportProgress(percent);
+        },
+        designSelection,
+      );
       if (mounted.current)
         setPrepared(
           URL.createObjectURL(
@@ -283,7 +297,7 @@ function ExtractedDeck({
             <Icon name="check" size={15} /> DECK UNPACKED
           </span>
           <h2 id="results-title" ref={heading} tabIndex={-1}>
-            Your story, a little sharper.
+            Your content. A whole new look.
           </h2>
           <p className="result-filename">{filename}</p>
         </div>
@@ -294,13 +308,6 @@ function ExtractedDeck({
         >
           <Icon name="upload" size={16} /> Upload another
         </button>
-      </div>
-      <div className="review-summary">
-        <span>
-          <strong>{available}</strong> wording suggestions ·{" "}
-          <strong>{Object.keys(edits).length}</strong> edits selected
-        </span>
-        <span>Review each slide, then download your new version.</span>
       </div>
       <div className="deck-summary">
         <span>
@@ -335,136 +342,153 @@ function ExtractedDeck({
           )}
         </details>
       )}
-      <div className="inspector">
-        <nav className="slide-list" aria-label="Extracted slides">
-          <div className="list-heading">
-            YOUR SLIDES <span>{String(slides.length).padStart(2, "0")}</span>
-          </div>
-          {slides.map((slide, index) => (
-            <button
-              key={index}
-              className={`slide-item ${selected === index ? "selected" : ""}`}
-              aria-current={selected === index ? "true" : undefined}
-              onClick={() => setSelected(index)}
-            >
-              <span className="slide-index">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span>{slide.title || "Untitled slide"}</span>
-              <Icon name="chevron" size={14} />
-            </button>
-          ))}
-        </nav>
-        <div className="inspector-main">
-          <div className="inspector-toolbar">
-            <span>SLIDE {String(selected + 1).padStart(2, "0")}</span>
-            <div
-              className="view-toggle"
-              role="group"
-              aria-label="Content display"
-            >
+      <DesignStudio
+        slides={slides}
+        selection={designSelection}
+        onChange={changeDesign}
+        disabled={exportProgress !== null}
+      />
+      <details className="optional-text-tools">
+        <summary>Optional: edit wording or inspect extracted content</summary>
+        <div className="review-summary">
+          <span>
+            <strong>{available}</strong> wording suggestions ·{" "}
+            <strong>{Object.keys(edits).length}</strong> edits selected
+          </span>
+          <span>Your wording stays unchanged unless you select an edit.</span>
+        </div>
+        <div className="inspector">
+          <nav className="slide-list" aria-label="Extracted slides">
+            <div className="list-heading">
+              YOUR SLIDES <span>{String(slides.length).padStart(2, "0")}</span>
+            </div>
+            {slides.map((slide, index) => (
               <button
-                aria-pressed={view === "review"}
-                onClick={() => setView("review")}
+                key={index}
+                className={`slide-item ${selected === index ? "selected" : ""}`}
+                aria-current={selected === index ? "true" : undefined}
+                onClick={() => setSelected(index)}
               >
-                Improve text
+                <span className="slide-index">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span>{slide.title || "Untitled slide"}</span>
+                <Icon name="chevron" size={14} />
               </button>
-              <button
-                aria-pressed={view === "json"}
-                onClick={() => setView("json")}
+            ))}
+          </nav>
+          <div className="inspector-main">
+            <div className="inspector-toolbar">
+              <span>SLIDE {String(selected + 1).padStart(2, "0")}</span>
+              <div
+                className="view-toggle"
+                role="group"
+                aria-label="Content display"
               >
-                JSON
-              </button>
-              <button
-                aria-pressed={view === "content"}
-                onClick={() => setView("content")}
+                <button
+                  aria-pressed={view === "review"}
+                  onClick={() => setView("review")}
+                >
+                  Improve text
+                </button>
+                <button
+                  aria-pressed={view === "json"}
+                  onClick={() => setView("json")}
+                >
+                  JSON
+                </button>
+                <button
+                  aria-pressed={view === "content"}
+                  onClick={() => setView("content")}
+                >
+                  Content
+                </button>
+              </div>
+            </div>
+            {view === "json" ? (
+              <pre
+                className="json-code"
+                tabIndex={0}
+                aria-label={`Extracted JSON for slide ${selected + 1}`}
               >
-                Content
-              </button>
+                <code>{json}</code>
+              </pre>
+            ) : view === "review" ? (
+              <TextReview
+                suggestions={suggestions.filter(
+                  (item) => item.slideIndex === selected,
+                )}
+                edits={edits}
+                onApply={(id, value) => changeEdit(id, value)}
+                onKeep={(id) => changeEdit(id)}
+                disabled={exportProgress !== null}
+              />
+            ) : (
+              <article className="content-preview">
+                <h3>{current.title || "Untitled slide"}</h3>
+                {current.bullets.length > 0 && (
+                  <ul>
+                    {current.bullets.map((bullet, index) => (
+                      <li
+                        key={index}
+                        style={{ marginLeft: `${bullet.level * 16}px` }}
+                      >
+                        {bullet.text}
+                        <span className="level-label">
+                          level {bullet.level}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {current.stats.length > 0 && (
+                  <div className="stat-list">
+                    {current.stats.map((stat, index) => (
+                      <span key={index}>{stat}</span>
+                    ))}
+                  </div>
+                )}
+                {current.images.map((image, index) => (
+                  <img
+                    className="extracted-image"
+                    key={index}
+                    src={image.dataUrl}
+                    alt={image.alt}
+                  />
+                ))}
+                {current.notes && (
+                  <div className="speaker-notes">
+                    <span>SPEAKER NOTES</span>
+                    <p>{current.notes}</p>
+                  </div>
+                )}
+                {!current.title &&
+                  !current.bullets.length &&
+                  !current.images.length &&
+                  !current.stats.length && (
+                    <p className="muted">
+                      No supported text or images on this slide.
+                    </p>
+                  )}
+              </article>
+            )}
+            <div className="inspector-footnote">
+              {view === "json"
+                ? "Image data is shortened here. Download JSON for complete data URLs."
+                : view === "review"
+                  ? "Edits are optional. Unselected text, numbers, images, and notes are kept as extracted."
+                  : "Content shows your selected edits. Original formatting is not retained."}
             </div>
           </div>
-          {view === "json" ? (
-            <pre
-              className="json-code"
-              tabIndex={0}
-              aria-label={`Extracted JSON for slide ${selected + 1}`}
-            >
-              <code>{json}</code>
-            </pre>
-          ) : view === "review" ? (
-            <TextReview
-              suggestions={suggestions.filter(
-                (item) => item.slideIndex === selected,
-              )}
-              edits={edits}
-              onApply={(id, value) => changeEdit(id, value)}
-              onKeep={(id) => changeEdit(id)}
-              disabled={exportProgress !== null}
-            />
-          ) : (
-            <article className="content-preview">
-              <h3>{current.title || "Untitled slide"}</h3>
-              {current.bullets.length > 0 && (
-                <ul>
-                  {current.bullets.map((bullet, index) => (
-                    <li
-                      key={index}
-                      style={{ marginLeft: `${bullet.level * 16}px` }}
-                    >
-                      {bullet.text}
-                      <span className="level-label">level {bullet.level}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {current.stats.length > 0 && (
-                <div className="stat-list">
-                  {current.stats.map((stat, index) => (
-                    <span key={index}>{stat}</span>
-                  ))}
-                </div>
-              )}
-              {current.images.map((image, index) => (
-                <img
-                  className="extracted-image"
-                  key={index}
-                  src={image.dataUrl}
-                  alt={image.alt}
-                />
-              ))}
-              {current.notes && (
-                <div className="speaker-notes">
-                  <span>SPEAKER NOTES</span>
-                  <p>{current.notes}</p>
-                </div>
-              )}
-              {!current.title &&
-                !current.bullets.length &&
-                !current.images.length &&
-                !current.stats.length && (
-                  <p className="muted">
-                    No supported text or images on this slide.
-                  </p>
-                )}
-            </article>
-          )}
-          <div className="inspector-footnote">
-            {view === "json"
-              ? "Image data is shortened here. Download JSON for complete data URLs."
-              : view === "review"
-                ? "Edits are optional. Unselected text, numbers, images, and notes are kept as extracted."
-                : "Content shows your selected edits. Original formatting is not retained."}
-          </div>
         </div>
-      </div>
+      </details>
       <div className="result-footer">
         <div>
           <Icon name="spark" size={18} />
           <span>
-            Your words. Your choice.
+            Your content. Your chosen design.
             <small>
-              Download a new 16:9 deck with your selected edits. Dense content
-              may add continuation slides.
+              Download the design you previewed, with your text and pictures.
             </small>
           </span>
         </div>
@@ -479,7 +503,7 @@ function ExtractedDeck({
             <a
               className="button button-primary"
               href={prepared}
-              download={`${filename.replace(/\.pptx$/i, "")}-improved.pptx`}
+              download={`${filename.replace(/\.pptx$/i, "")}-${designSelection.designId}.pptx`}
             >
               Download .pptx <Icon name="download" size={16} />
             </a>
@@ -497,7 +521,7 @@ function ExtractedDeck({
         </div>
       </div>
       <p className="export-note">
-        Rebuilt in a clean editorial style from extracted content. Original
+        Rebuilt in your chosen design from extracted content. Original
         formatting, grouped shapes, charts, and animations are not preserved.
         Your source file stays untouched.
       </p>
@@ -629,7 +653,7 @@ export default function App() {
         </div>
       </header>
       <main>
-        <section className="hero">
+        <section className={`hero ${slides ? "hero-hidden" : ""}`}>
           <div className="hero-copy">
             <span className="eyebrow">
               <span className="status-dot" /> BIG IDEAS DESERVE BETTER SLIDES

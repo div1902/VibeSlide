@@ -2,7 +2,7 @@
 
 Make your deck look like you meant it.
 
-A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **Current flow: upload → review wording suggestions → download a rebuilt PowerPoint.** No backend, account, API keys, external fonts, or file uploads are required.
+A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **Current flow: upload → preview designs for your audience → choose a layout → download a rebuilt PowerPoint.** No backend, account, API keys, external fonts, or file uploads are required.
 
 ## Run locally
 
@@ -15,9 +15,11 @@ npm run dev
 
 Open the local address Vite prints (normally port 5173). Drop a `.pptx`, use **Choose a file**, or select **Try our sample**. The bundled `public/sample.pptx` is a real four-slide presentation with nested bullet levels, stats, an embedded image, and speaker notes.
 
-After parsing, choose a slide and open **Improve text**. Review the original and suggested wording, optionally type your own version, then choose **Use this version** or **Keep original** for each title or text block. Suggestions use conservative English phrase substitutions locally; no AI service is called and no edits are automatically accepted. Text inside double quotes and URLs is left unchanged. Numbers and notes are not rewritten.
+After parsing, compare **Professional**, **Club Presentation**, and **Pitch Deck** cards. All three show your actual extracted slide content. Pick a design for the whole deck, navigate with the preview arrows, keyboard arrows, or page strip, and choose **Suggested layout**, **Clean structure**, **Idea cards**, or **Picture-led** for each original slide. Pictures are retained in every layout. Suggestions use simple content rules; your selected purpose always takes precedence. All preview pages, including continuation pages, are available before download.
 
-Choose **Create new .pptx**, wait for generation, then tap **Download .pptx** to save the prepared file. This explicit download link works with mobile browsers, including Safari’s download flow. If you change a selected edit, generate a fresh file. With no selected edits, export rebuilds the extracted content as-is. The new deck uses a cream editorial design, Georgia/Arial fonts, and 16:9 pages. Dense text and extra images get continuation slides; original styling, charts, animations, and unsupported objects cannot be restored. The original file is untouched.
+For optional wording changes, expand **Optional: edit wording or inspect extracted content**, choose a slide, and open **Improve text**. Review the original and suggested wording, optionally type your own version, then choose **Use this version** or **Keep original** for each title or text block. Suggestions use conservative English phrase substitutions locally; no AI service is called and no edits are automatically accepted. Text inside double quotes and URLs is left unchanged. Numbers and notes are not rewritten.
+
+Choose **Create new .pptx**, wait for generation, then tap **Download .pptx** to save the prepared file. This explicit download link works with mobile browsers, including Safari’s download flow. If you change the design, a layout, or a selected edit, generate a fresh file. With no selected edits, export rebuilds the extracted content as-is. The new deck uses your selected purpose-based design, system fonts, and 16:9 pages. The browser SVG/HTML preview and PptxGenJS writer both consume the same slide scene: text, fonts, colors, image containment, and positions. PowerPoint font rendering can vary slightly across devices. Dense text and extra images get continuation slides; original styling, charts, animations, and unsupported objects cannot be restored. The original file is untouched.
 
 Switch to **JSON** or **Content** to inspect the selected version. **Download JSON** exports the entire `Slide[]`, including complete image data URLs. Image data is abbreviated only in the on-screen JSON inspector. This is a content inspector, not a rendering of the original PowerPoint slide.
 
@@ -79,9 +81,14 @@ src/
     parsePptx.test.ts     Valid, malformed, and unsupported input coverage
     improveText.ts       Local suggestions and immutable selected edits
     layoutEngine.ts      Content pagination and export layout selection
-    exportPptx.ts        Rebuild the selected content with PptxGenJS
+    exportPptx.ts        Write the shared scene with PptxGenJS
+    designScene.ts       Shared scene geometry and content-based suggestions
   components/
-    TextReview.tsx       Per-field suggestion review and editing
+    TextReview.tsx       Optional wording review
+    DesignStudio.tsx     Purpose cards, layout choices, and slide navigation
+    SlidePreview.tsx     Responsive rendering of the shared scene
+  vibes/
+    index.ts             Professional, Club Presentation, and Pitch Deck
 public/
   sample.pptx             Real four-slide fixture
   favicon.svg
@@ -101,4 +108,4 @@ The `dist/` directory can also be served by any static host. Use HTTPS in produc
 
 ## Next stages
 
-The six selectable vibes, shared slide preview rendering, comparison slider, custom image palettes, and roast/share cards remain future stages. The current export provides one editorial design with title, text, split-image, and image layouts. The landing artwork is illustrative.
+The original six aesthetic vibes, before/after comparison slider, custom image palettes, and roast/share cards remain future stages. The current purpose-based designs support title, clean text, cards, highlighted numbers, and image layouts, with shared previews and PowerPoint export. The landing artwork is illustrative; the design studio uses uploaded content.
