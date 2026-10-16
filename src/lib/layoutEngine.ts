@@ -1,94 +1,45 @@
-import type { Bullet, Slide } from "../types";
+import type { Slide } from "../types";
 
 export interface ExportPage extends Slide {
   sourceSlide: number;
   layout: "title" | "bullets" | "split" | "images";
 }
 
-/** Split dense content into continuation slides rather than discarding it. */
-function chunks(text: string, limit: number): string[] {
-  if (!text) return [];
-  const result: string[] = [];
-  let rest = text;
-  while (rest.length > limit) {
-    const boundary = rest.lastIndexOf(" ", limit);
-    const cut = boundary > limit / 2 ? boundary : limit;
-    result.push(rest.slice(0, cut));
-    rest = rest.slice(cut).trimStart();
-  }
-  if (rest) result.push(rest);
-  return result;
+/** Exactly one output page per input slide. Never split, truncate, or merge content. */
+export function layoutDeck(slides: Slide[]): ExportPage[] {
+  return slides.map((slide, sourceSlide) => ({
+    ...slide,
+    sourceSlide,
+    bullets: [
+      ...slide.bullets.map((bullet) => ({ ...bullet })),
+      ...slide.stats
+        .filter((text, index) => index !== 0 || text !== slide.title)
+        .map((text) => ({ text, level: 0 })),
+    ],
+    stats: [],
+    images: slide.images.map((image) => ({ ...image })),
+    layout: slide.images.length
+      ? slide.bullets.length || slide.stats.length
+        ? "split"
+        : "images"
+      : sourceSlide === 0 && slide.bullets.length <= 2
+        ? "title"
+        : "bullets",
+  }));
 }
 
-export function layoutDeck(slides: Slide[]): ExportPage[] {
-  return slides.flatMap((slide, sourceSlide) => {
-    const titleParts = chunks(slide.title, 140);
-    const title = titleParts[0] || "";
-    const body: Bullet[] = [
-      ...titleParts.slice(1).map((text) => ({ text, level: 0 })),
-      ...slide.bullets.flatMap((bullet) =>
-        chunks(bullet.text, 180).map((text) => ({ ...bullet, text })),
-      ),
-      ...slide.stats
-        .filter((stat) => stat !== slide.title)
-        .flatMap((stat) =>
-          chunks(stat, 180).map((text) => ({ text, level: 0 })),
-        ),
-    ];
-    const groups: Bullet[][] = [[]];
-    for (const bullet of body) {
-      const current = groups[groups.length - 1];
-      if (
-        current.length &&
-        (current.length >= 5 ||
-          current.reduce((size, item) => size + item.text.length, 0) +
-            bullet.text.length >
-            650)
-      )
-        groups.push([]);
-      groups[groups.length - 1].push(bullet);
-    }
-    const pages: ExportPage[] = groups.map((bullets, index) => ({
-      title: index ? `${title || "Untitled slide"} — continued` : title,
-      bullets,
-      stats: [],
-      images: [],
-      notes: slide.notes,
-      sourceSlide,
-      layout: sourceSlide === 0 && body.length <= 2 ? "title" : "bullets",
-    }));
-    if (!body.length && slide.images.length > 1) {
-      pages[0].images = slide.images.slice(0, 2);
-      pages[0].layout = "images";
-      for (let index = 2; index < slide.images.length; index += 2)
-        pages.push({
-          title,
-          bullets: [],
-          stats: [],
-          images: slide.images.slice(index, index + 2),
-          notes: slide.notes,
-          sourceSlide,
-          layout: "images",
-        });
-    } else if (
-      slide.images.length === 1 &&
-      groups.length === 1 &&
-      body.reduce((size, item) => size + item.text.length, 0) < 300
-    ) {
-      pages[0].images = [...slide.images];
-      pages[0].layout = "split";
-    } else {
-      for (let index = 0; index < slide.images.length; index += 2)
-        pages.push({
-          title,
-          bullets: [],
-          stats: [],
-          images: slide.images.slice(index, index + 2),
-          notes: slide.notes,
-          sourceSlide,
-          layout: "images",
-        });
-    }
-    return pages;
-  });
+/** Select complete slides in source order; never treat a screenshot as a deck. */
+export function selectSlides(slides: Slide[], scope = "all"): Slide[] {
+  if (!scope.trim() || scope.trim().toLowerCase() === "all") return slides;
+  const indices = new Set<number>();
+  for (const part of scope.split(",")) {
+    const match = part.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);
+    if (!match) throw new Error("Use “all” or slide numbers such as 1-3, 5.");
+    const start = Number(match[1]),
+      end = Number(match[2] ?? match[1]);
+    if (start < 1 || end < start || end > slides.length)
+      throw new Error(`Choose slide numbers between 1 and ${slides.length}.`);
+    for (let i = start; i <= end; i++) indices.add(i - 1);
+  }
+  return slides.filter((_, index) => indices.has(index));
 }

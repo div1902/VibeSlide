@@ -2,7 +2,9 @@
 
 Make your deck look like you meant it.
 
-A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **Current flow: upload → preview designs for your audience → choose a layout → download a rebuilt PowerPoint.** No backend, account, API keys, external fonts, or file uploads are required.
+A client-side PowerPoint restyling app, built one working stage at a time with Vite, React, TypeScript, and plain CSS. **Current flow: upload → preview designs for your audience → choose a layout → download a rebuilt PowerPoint.** The file workflow needs no backend, account, API keys, external fonts, or uploads. Optional editor scans require Canva app registration or PowerPoint add-in installation.
+
+**On iPad:** use the deployed website and choose a `.pptx` from Files. **On desktop Chrome:** a downloadable extension is included. See [installation, scan support, and limitations](docs/integrations.md). The extension provides editor detection and local file processing; full-deck scans use the separately installed editor adapters. These adapters still need authenticated host acceptance testing.
 
 ## Run locally
 
@@ -15,24 +17,25 @@ npm run dev
 
 Open the local address Vite prints (normally port 5173). Drop a `.pptx`, use **Choose a file**, or select **Try our sample**. The bundled `public/sample.pptx` is a real four-slide presentation with nested bullet levels, stats, an embedded image, and speaker notes.
 
-After parsing, compare **Professional**, **Club Presentation**, and **Pitch Deck** cards. All three show your actual extracted slide content. Pick a design for the whole deck, navigate with the preview arrows, keyboard arrows, or page strip, and choose **Suggested layout**, **Clean structure**, **Idea cards**, or **Picture-led** for each original slide. Pictures are retained in every layout. Suggestions use simple content rules; your selected purpose always takes precedence. All preview pages, including continuation pages, are available before download.
+After parsing, compare **Professional**, **Club Presentation**, **Pitch Deck**, **Editorial Magazine**, **Dark Luxury**, and **Retro Terminal** cards. All six show your actual extracted slide content. Pick a design for the whole deck, navigate with the preview arrows, keyboard arrows, or page strip, and choose **Suggested layout**, **Clean structure**, **Idea cards**, or **Picture-led** for each original slide. Pictures are retained in every layout. Suggestions use simple content rules; your selected purpose always takes precedence. Choose `all` or a range such as `1-3, 5` before importing. Exactly one output page is kept for each selected input slide, in source order. All selected pages are available in the preview.
 
 For optional wording changes, expand **Optional: edit wording or inspect extracted content**, choose a slide, and open **Improve text**. Review the original and suggested wording, optionally type your own version, then choose **Use this version** or **Keep original** for each title or text block. Suggestions use conservative English phrase substitutions locally; no AI service is called and no edits are automatically accepted. Text inside double quotes and URLs is left unchanged. Numbers and notes are not rewritten.
 
-Choose **Create new .pptx**, wait for generation, then tap **Download .pptx** to save the prepared file. This explicit download link works with mobile browsers, including Safari’s download flow. If you change the design, a layout, or a selected edit, generate a fresh file. With no selected edits, export rebuilds the extracted content as-is. The new deck uses your selected purpose-based design, system fonts, and 16:9 pages. The browser SVG/HTML preview and PptxGenJS writer both consume the same slide scene: text, fonts, colors, image containment, and positions. PowerPoint font rendering can vary slightly across devices. Dense text and extra images get continuation slides; original styling, charts, animations, and unsupported objects cannot be restored. The original file is untouched.
+Choose **Create new .pptx**, wait for generation, then tap **Download .pptx** to save the prepared file. This explicit download link works with mobile browsers, including Safari’s download flow. If you change the design, a layout, or a selected edit, generate a fresh file. With no selected edits, export rebuilds the extracted content as-is. The new deck uses your selected purpose-based design, system fonts, and 16:9 pages. The browser SVG/HTML preview and PptxGenJS writer both consume the same slide scene: text, fonts, colors, image containment, and positions. PowerPoint font rendering can vary slightly across devices. Dense text shrinks on the same page with readability warnings; extra images stay in a grid. Estimated overflow blocks export. Slide counts never change. original styling, charts, animations, and unsupported objects cannot be restored. The original file is untouched.
 
 Switch to **JSON** or **Content** to inspect the selected version. **Download JSON** exports the entire `Slide[]`, including complete image data URLs. Image data is abbreviated only in the on-screen JSON inspector. This is a content inspector, not a rendering of the original PowerPoint slide.
 
 ```sh
-npm test          # Parsing, suggestions, layout pagination, and PPTX export tests
-npm run build    # Strict TypeScript check and production build into dist/
+npm test          # Parsing, suggestions, count preservation, scan adapters, and PPTX export tests
+npm run build    # Type check; build website, extension ZIP, and Canva bundle into dist/
 npm run preview  # Serve the production build locally
 npm run fixture  # Regenerate public/sample.pptx with PptxGenJS
+npm run check:extension # After build: validate ZIP, CSP, permissions, and popup
 ```
 
 ## What the parser does
 
-`src/lib/parsePptx.ts` uses JSZip and the browser's DOMParser to read `ppt/slides/slideN.xml` in numeric order. Its public API is:
+`src/lib/parsePptx.ts` uses JSZip and the browser's DOMParser to read `ppt/slides/slideN.xml` in the order referenced by `ppt/presentation.xml`. Minimal files without slide references fall back to numeric filenames. Its public API is:
 
 ```ts
 import { parsePptx } from "./src/lib/parsePptx";
@@ -62,11 +65,11 @@ interface Slide {
 - Embedded raster images resolve through each slide's relationships to `ppt/media` and become data URLs. Linked images are never fetched. Unsupported media such as EMF/SVG are skipped with a reading note.
 - Speaker notes are read through notes-slide relationships; slide-number, date, header, and footer placeholders are excluded.
 - Animations, grouped shapes (including their children), tables, charts, SmartArt, OLE objects, master/layout text, and original styling are intentionally ignored. This is a best-effort content extractor, not a lossless PowerPoint importer. Strict OOXML namespaces and inherited master/layout content are not supported in this first stage.
-- Malformed slides are skipped with warnings; a completely unreadable deck gets a clear error. Blank slides remain blank. The original archive is never edited.
+- Malformed slides stop the import with a clear error so slide counts cannot silently shrink. Library callers can explicitly opt into `allowPartial: true`; the app never does. Blank slides remain blank. The original archive is never edited.
 
 For browser safety, uploads are limited to **30 MB / 300 slides**, with at most 5,000 ZIP entries, 20 MB per expanded entry, and 150 MB expanded total. The ZIP directory is checked before extraction. Encrypted, multipart, and ZIP64 archives are rejected. Parsing is asynchronous and cancellable between slide reads; ZIP inflation itself runs on the browser's main thread.
 
-Only the app and its static sample are requested from the host. Selected file content is read in browser memory, never posted to a service or saved in browser storage. Generated JSON downloads are local. The app does not render slide content as HTML or execute embedded content.
+In the file workflow, only app assets and the static sample are requested from the host. PowerPoint scans load Office.js from Microsoft. Canva scans use Canva’s own export service and read its returned HTTPS file. Selected file content is read in browser memory, never posted to a service or saved in browser storage. Generated JSON downloads are local. The app does not render slide content as HTML or execute embedded content.
 
 ## Files
 
@@ -80,23 +83,30 @@ src/
     parsePptx.ts          Read-only PowerPoint content extraction
     parsePptx.test.ts     Valid, malformed, and unsupported input coverage
     improveText.ts       Local suggestions and immutable selected edits
-    layoutEngine.ts      Content pagination and export layout selection
+    layoutEngine.ts      Count-preserving layout and selected-page ranges
     exportPptx.ts        Write the shared scene with PptxGenJS
     designScene.ts       Shared scene geometry and content-based suggestions
+    scanEditor.ts        Office complete-file and Canva export adapters
+    integrations.ts      Read-only Office manifest for the deployed URL
   components/
+    EditorScan.tsx       Scan action, scope selection, installation downloads
     TextReview.tsx       Optional wording review
     DesignStudio.tsx     Purpose cards, layout choices, and slide navigation
     SlidePreview.tsx     Responsive rendering of the shared scene
   vibes/
-    index.ts             Professional, Club Presentation, and Pitch Deck
+    index.ts             Six purpose and aesthetic configurations
 public/
   sample.pptx             Real four-slide fixture
   favicon.svg
 scripts/
   create-sample.mjs       Rebuild the fixture using PptxGenJS
+  build-extension.mjs    Bundle and zip an offline Chrome MV3 extension
+  build-canva.mjs        Build the single-bundle Canva Design Editor app
+extension/               Manifest, popup, editor detection, local app launcher
+docs/                    Integration instructions and design references
 ```
 
-React, React DOM, JSZip, and PptxGenJS are the application dependencies. PptxGenJS is loaded on demand when you create a new PowerPoint and also generates the sample fixture. Vitest and jsdom provide DOM-based parser tests. The lockfile is committed for repeatable installation.
+React, React DOM, JSZip, PptxGenJS, and the official Canva design/intents SDKs are the application dependencies. Editor SDKs are excluded from the Chrome extension. PptxGenJS is loaded on demand when you create a new PowerPoint and also generates the sample fixture. Vitest and jsdom provide DOM-based parser tests. The lockfile is committed for repeatable installation.
 
 ## Deploy to Vercel
 
@@ -108,4 +118,8 @@ The `dist/` directory can also be served by any static host. Use HTTPS in produc
 
 ## Next stages
 
-The original six aesthetic vibes, before/after comparison slider, custom image palettes, and roast/share cards remain future stages. The current purpose-based designs support title, clean text, cards, highlighted numbers, and image layouts, with shared previews and PowerPoint export. The landing artwork is illustrative; the design studio uses uploaded content.
+The remaining original aesthetic vibes, before/after comparison slider, custom image palettes, and roast/share cards remain future stages. The current purpose-based designs support title, clean text, cards, highlighted numbers, and image layouts, with shared previews and PowerPoint export. The landing artwork is illustrative; the design studio uses uploaded content.
+
+## Design research
+
+[Published theme references and the resulting design rules](docs/design-references.md) explain typography, palettes, spacing, image placement, and differences between vibes. This is curated reference research, not AI training.

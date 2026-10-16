@@ -46,6 +46,51 @@ describe("PowerPoint export", () => {
     ).toBe(true);
     expect(progress.at(-1)).toBe(100);
   });
+  it("exports one slide per input, including dense and empty slides", async () => {
+    const slides = [
+      {
+        title: "Dense slide",
+        bullets: Array.from({ length: 13 }, (_, i) => ({
+          text: `Point ${i}`,
+          level: i % 3,
+        })),
+        stats: ["42%"],
+        images: [],
+        notes: "Keep this note",
+      },
+      { title: "", bullets: [], stats: [], images: [] },
+      {
+        title: "End",
+        bullets: [{ text: "Same words", level: 0 }],
+        stats: [],
+        images: [],
+      },
+    ];
+    const output = await JSZip.loadAsync(await exportPptx(slides));
+    expect(
+      Object.keys(output.files).filter((p) =>
+        /^ppt\/slides\/slide\d+\.xml$/.test(p),
+      ),
+    ).toHaveLength(3);
+    const first = await output.file("ppt/slides/slide1.xml")!.async("string");
+    for (const b of slides[0].bullets) expect(first).toContain(b.text);
+    expect(first).toContain("42%");
+    expect(
+      await output.file("ppt/slides/slide2.xml")!.async("string"),
+    ).not.toContain("<a:t>");
+  });
+  it("refuses unsafe estimated overflow", async () => {
+    await expect(
+      exportPptx([
+        {
+          title: "Full",
+          bullets: [{ text: "too much content ".repeat(20000), level: 0 }],
+          images: [],
+          stats: [],
+        },
+      ]),
+    ).rejects.toThrow("more text than fits");
+  });
   it("rejects empty decks", async () => {
     await expect(exportPptx([])).rejects.toThrow("no slides");
   });

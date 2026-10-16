@@ -75,7 +75,9 @@ export default function DesignStudio({
             then fine-tune the layout.
           </p>
         </div>
-        <span className="design-local">No rewriting required</span>
+        <span className="design-local">
+          {slides.length} in → {pages.length} out
+        </span>
       </div>
       <div
         className="purpose-grid"
@@ -116,7 +118,7 @@ export default function DesignStudio({
             {designs.find((design) => design.id === selection.designId)!.name}
           </strong>
           <span>
-            {scene.label} · Original slide {page.sourceSlide + 1}
+            {scene.label} · Slide {page.sourceSlide + 1}
           </span>
         </div>
         <div className="preview-navigation">
@@ -148,9 +150,16 @@ export default function DesignStudio({
         />
       </div>
       <p className="layout-reason">{scene.reason}</p>
+      {scene.issues.length > 0 && (
+        <div className="warnings" role="status">
+          {scene.issues.map((issue) => (
+            <p key={issue}>{issue}</p>
+          ))}
+        </div>
+      )}
       <div className="layout-choices">
         <label htmlFor="layout-choice">
-          Layout for original slide {page.sourceSlide + 1}
+          Layout for slide {page.sourceSlide + 1}
         </label>
         <select
           id="layout-choice"
@@ -197,8 +206,8 @@ export default function DesignStudio({
       </div>
       <p className="design-footnote">
         The preview and download share the same layout. Font rendering can vary
-        in PowerPoint. Dense slides may create continuation pages; check each
-        page using the arrows.
+        in PowerPoint. Slide count stays unchanged. Review any small-text
+        warnings before downloading.
       </p>
     </section>
   );

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "VibeSlide — presentation restyler",
+  "description": "Choose a new vibe for your PowerPoint export. All parsing, previews, and rebuilding happen on your device.",
+  "version": "0.2.0",
+  "permissions": ["activeTab"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open VibeSlide"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'"
+  }
+}

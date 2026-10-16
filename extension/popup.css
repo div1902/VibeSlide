@@ -1,0 +1,47 @@
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding: 24px;
+  width: 350px;
+  background: #151a18;
+  color: #f7f3e9;
+  font:
+    14px/1.55 Arial,
+    sans-serif;
+}
+.eyebrow {
+  color: #bbf47c;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+}
+h1 {
+  font-size: 29px;
+  line-height: 1.15;
+  letter-spacing: -1px;
+}
+p {
+  color: #c1c6bd;
+}
+button {
+  cursor: pointer;
+  width: 100%;
+  border: 0;
+  border-radius: 9px;
+  padding: 13px;
+  font-weight: bold;
+  color: #172019;
+  background: #c5f28b;
+}
+button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 4px;
+}
+#result {
+  padding-top: 12px;
+}
+.privacy {
+  font-size: 11px;
+  margin-bottom: 0;
+}

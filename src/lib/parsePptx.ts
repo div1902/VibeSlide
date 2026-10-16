@@ -26,6 +26,8 @@ interface ParseOptions {
   onProgress?: (progress: ParseProgress) => void;
   onWarning?: (warning: string) => void;
   signal?: AbortSignal;
+  /** Explicit opt-in for callers that accept missing slides. The app never enables this. */
+  allowPartial?: boolean;
 }
 
 interface Relationship {
@@ -223,6 +225,16 @@ async function parseSlide(
     throw new Error("Not a slide");
   }
   const tree = all(document, NS.p, "spTree")[0];
+  if (
+    tree &&
+    (direct(tree, NS.p, "grpSp").length ||
+      direct(tree, NS.p, "graphicFrame").length ||
+      direct(tree, NS.p, "oleObj").length)
+  ) {
+    warn(
+      "Grouped objects, charts, tables, or embedded objects are unsupported and were skipped. Review this slide against the original.",
+    );
+  }
   const shapes = tree ? direct(tree, NS.p, "sp") : [];
   const textShapes = shapes
     .map((shape) => ({
@@ -370,13 +382,33 @@ export async function parsePptx(
       "This archive is not a PowerPoint presentation. Please choose a valid .pptx.",
     );
   }
-  const paths = Object.keys(zip.files)
+  let paths = Object.keys(zip.files)
     .filter((path) => /^ppt\/slides\/slide\d+\.xml$/.test(path))
     .sort(
       (a, b) =>
         Number(a.match(/slide(\d+)\.xml$/)![1]) -
         Number(b.match(/slide(\d+)\.xml$/)![1]),
     );
+  // Follow the presentation order, which can differ after reordering slides in PowerPoint.
+  try {
+    const presentation = xml(
+      await zip.file("ppt/presentation.xml")!.async("string"),
+    );
+    const ids = all(presentation, NS.p, "sldId");
+    if (ids.length) {
+      const rels = await relationships(zip, "ppt/presentation.xml");
+      paths = ids.map((id) => {
+        const relationship = rels.get(id.getAttributeNS(NS.r, "id") ?? "");
+        if (!relationship || !zip.file(relationship.target))
+          throw new Error("Missing slide reference");
+        return relationship.target;
+      });
+    }
+  } catch {
+    throw new PptxParseError(
+      "The slide order could not be read safely. Save a fresh PowerPoint copy and try again.",
+    );
+  }
   if (!paths.length)
     throw new PptxParseError(
       "There are no slides in this deck. Add a slide in PowerPoint and try again.",
@@ -388,7 +420,7 @@ export async function parsePptx(
   const slides: Slide[] = [];
   for (const [index, path] of paths.entries()) {
     assertActive(signal);
-    const slideNumber = Number(path.match(/slide(\d+)\.xml$/)![1]);
+    const slideNumber = index + 1;
     try {
       slides.push(
         await parseSlide(zip, path, (message) =>
@@ -396,6 +428,10 @@ export async function parsePptx(
         ),
       );
     } catch {
+      if (!options.allowPartial)
+        throw new PptxParseError(
+          `Slide ${slideNumber} could not be read. To keep your slide count unchanged, scanning has stopped. Save a fresh .pptx copy and try again.`,
+        );
       onWarning?.(`Slide ${slideNumber} could not be read and was skipped.`);
     }
     onProgress?.({

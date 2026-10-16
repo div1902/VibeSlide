@@ -2251,3 +2251,15 @@ svg {
     margin-top: 20px;
   }
 }
+
+.editor-scan { padding: 28px 32px; border-bottom: 1px solid var(--border, #d9ddd4); }
+.editor-scan h2 { margin: 8px 0; font-size: 26px; letter-spacing: -.8px; }
+.editor-scan p, .integration-note { max-width: 820px; line-height: 1.6; font-size: 14px; }
+.slide-scope { display: flex; flex-direction: column; gap: 8px; margin: 22px 0; font-size: 13px; font-weight: 600; }
+.slide-scope input { width: min(100%, 320px); padding: 12px; border: 1px solid #b4bbae; border-radius: 8px; background: #fffef9; color: #202a22; font: inherit; }
+.slide-scope small { max-width: 680px; font-weight: 400; line-height: 1.5; }
+.integration-help { margin-top: 18px; font-size: 13px; }
+.integration-help summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.integration-help a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.integration-help code { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .editor-scan { padding: 24px 18px; } }

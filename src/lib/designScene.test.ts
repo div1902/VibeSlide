@@ -56,6 +56,44 @@ describe("shared preview and export scenes", () => {
         expect(source).toEqual(before);
       });
     }
+  it("keeps dense mixed content on one slide and flags small text", () => {
+    const dense = {
+      ...source,
+      bullets: Array.from({ length: 80 }, (_, i) => ({
+        text: `Point ${i}: all of this original content remains unchanged`,
+        level: i % 9,
+      })),
+      images: Array.from({ length: 20 }, (_, i) => ({
+        ...source.images[0],
+        alt: `Image ${i}`,
+      })),
+    };
+    const pages = layoutDeck([dense]);
+    expect(pages).toHaveLength(1);
+    for (const design of designs) {
+      const scene = createScene(pages[0], design.id);
+      expect(scene.elements.filter((e) => e.kind === "image")).toHaveLength(20);
+      expect(scene.elements.filter((e) => e.kind === "text")).toHaveLength(82);
+      expect(scene.issues.length).toBeGreaterThan(0);
+      for (const e of scene.elements) {
+        expect(e.w).toBeGreaterThan(0);
+        expect(e.h).toBeGreaterThan(0);
+        expect(e.x + e.w).toBeLessThanOrEqual(960);
+        expect(e.y + e.h).toBeLessThanOrEqual(540);
+      }
+    }
+  });
+  it("flags content that cannot fit instead of truncating it", () => {
+    const text = "An extremely dense document. ".repeat(20000);
+    const scene = createScene(
+      layoutDeck([{ ...source, images: [], bullets: [{ text, level: 0 }] }])[0],
+      "professional",
+    );
+    expect(scene.overflow).toBe(true);
+    expect(
+      scene.elements.some((e) => e.kind === "text" && e.text === text),
+    ).toBe(true);
+  });
   it("suggests purpose from content and allows a general default", () => {
     expect(recommendDesign([{ ...source, title: "Club members" }]).id).toBe(
       "club",

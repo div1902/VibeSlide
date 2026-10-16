@@ -68,6 +68,43 @@ describe("parsePptx", () => {
     ).toEqual(["Slide 1", "Slide 2", "Slide 10"]);
   });
 
+  it("uses presentation relationships for reordered slides and excludes orphan slide files", async () => {
+    const zip = deck();
+    for (const number of [1, 2, 3])
+      zip.file(
+        `ppt/slides/slide${number}.xml`,
+        slideXml(shape(text(`Slide ${number}`))),
+      );
+    zip.file(
+      "ppt/presentation.xml",
+      `<p:presentation xmlns:p="${p}" xmlns:r="${r}"><p:sldIdLst><p:sldId id="256" r:id="second"/><p:sldId id="257" r:id="first"/></p:sldIdLst></p:presentation>`,
+    );
+    zip.file(
+      "ppt/_rels/presentation.xml.rels",
+      `<Relationships xmlns="${rel}"><Relationship Id="first" Type="${r}/slide" Target="slides/slide1.xml"/><Relationship Id="second" Type="${r}/slide" Target="slides/slide2.xml"/></Relationships>`,
+    );
+    expect((await parsePptx(await toFile(zip))).map((s) => s.title)).toEqual([
+      "Slide 2",
+      "Slide 1",
+    ]);
+  });
+  it("stops on a broken slide instead of silently changing the count", async () => {
+    const zip = deck();
+    zip.file("ppt/slides/slide1.xml", slideXml(shape(text("Readable"))));
+    zip.file("ppt/slides/slide2.xml", "<broken");
+    await expect(parsePptx(await toFile(zip))).rejects.toThrow(
+      "Slide 2 could not be read",
+    );
+  });
+  it("rejects missing presentation references instead of guessing the order", async () => {
+    const zip = deck();
+    zip.file(
+      "ppt/presentation.xml",
+      `<p:presentation xmlns:p="${p}" xmlns:r="${r}"><p:sldIdLst><p:sldId id="256" r:id="missing"/></p:sldIdLst></p:presentation>`,
+    );
+    await expect(parsePptx(await toFile(zip))).rejects.toThrow("slide order");
+  });
+
   it("prefers a title placeholder over earlier text, joins styled runs, and decodes XML", async () => {
     const zip = deck();
     zip.file(
@@ -200,6 +237,7 @@ describe("parsePptx", () => {
       (
         await parsePptx(await toFile(zip), {
           onWarning: (warning) => warnings.push(warning),
+          allowPartial: true,
         })
       ).map((slide) => slide.title),
     ).toEqual(["Kept"]);
@@ -242,7 +280,7 @@ describe("parsePptx", () => {
     const bad = deck();
     bad.file("ppt/slides/slide1.xml", "<broken");
     await expect(parsePptx(await toFile(bad))).rejects.toThrow(
-      "None of the slides",
+      "slide count unchanged",
     );
   });
 

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VibeSlide</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <span class="eyebrow">VIBESLIDE</span>
+    <h1>Same story.<br />A different feeling.</h1>
+    <p id="host">Open Canva or PowerPoint, then scan to see the next step.</p>
+    <button id="scan">Scan current tab</button>
+    <div id="result" hidden aria-live="polite">
+      <p id="guidance"></p>
+      <button id="open">Choose a vibe with your .pptx</button>
+    </div>
+    <p class="privacy">
+      Local processing. No account or file uploads to VibeSlide.
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>

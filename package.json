@@ -5,13 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/build-extension.mjs && node scripts/build-canva.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "fixture": "node scripts/create-sample.mjs"
+    "fixture": "node scripts/create-sample.mjs",
+    "build:extension": "tsc -b && node scripts/build-extension.mjs",
+    "build:canva": "tsc -b && node scripts/build-canva.mjs",
+    "check:extension": "node scripts/check-extension.mjs"
   },
   "dependencies": {
+    "@canva/design": "^2.13.1",
+    "@canva/intents": "^2.7.1",
     "jszip": "^3.10.1",
     "pptxgenjs": "^4.0.1",
     "react": "^19.1.1",

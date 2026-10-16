@@ -28,6 +28,10 @@ export async function exportPptx(
       selection.designId,
       selection.layouts[content.sourceSlide] ?? "auto",
     );
+    if (scene.overflow)
+      throw new Error(
+        `Slide ${content.sourceSlide + 1} has more text than fits safely. Choose Clean structure or edit the text before downloading.`,
+      );
     const page = deck.addSlide();
     page.background = { color: scene.background };
     for (const element of scene.elements) {

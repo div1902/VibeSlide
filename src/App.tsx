@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, parsePptx } from "./lib/parsePptx";
 import { applyTextEdits, suggestText } from "./lib/improveText";
+import EditorScan from "./components/EditorScan";
+import { scanEditor } from "./lib/scanEditor";
+import { selectSlides } from "./lib/layoutEngine";
 import TextReview from "./components/TextReview";
 import DesignStudio from "./components/DesignStudio";
 import { recommendDesign, type DesignSelection } from "./lib/designScene";
@@ -83,7 +86,11 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
 
 function Brand() {
   return (
-    <a className="brand" href="/" aria-label="VibeSlide home">
+    <a
+      className="brand"
+      href={`${import.meta.env.BASE_URL}index.html`}
+      aria-label="VibeSlide home"
+    >
       <span className="brand-mark">
         v
         <span>
@@ -259,10 +266,12 @@ function ExtractedDeck({
             }),
           ),
         );
-    } catch {
+    } catch (cause) {
       if (mounted.current)
         setExportError(
-          "We couldn’t rebuild this deck. An extracted image may be unsupported. You can still download the reviewed JSON or try another deck.",
+          cause instanceof Error
+            ? cause.message
+            : "We couldn’t rebuild this deck. An extracted image may be unsupported. You can still download the reviewed JSON or try another deck.",
         );
     } finally {
       if (mounted.current) setExportProgress(null);
@@ -559,6 +568,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<ParseProgress | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [scope, setScope] = useState("all");
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -584,7 +594,7 @@ export default function App() {
       },
     });
     if (job.signal.aborted) return;
-    setSlides(result);
+    setSlides(selectSlides(result, scope));
     setFilename(file.name);
     setWarnings(messages);
     setProgress(null);
@@ -629,6 +639,35 @@ export default function App() {
     }
   }
 
+  async function scanOpenDeck(host: "powerpoint" | "canva") {
+    controller.current?.abort();
+    const job = new AbortController();
+    controller.current = job;
+    setError("");
+    setWarnings([]);
+    setSlides(null);
+    setProgress({
+      percent: 1,
+      message: "Waiting for the editor to export your deck…",
+    });
+    try {
+      const file = await scanEditor(host, job.signal, (percent) => {
+        if (!job.signal.aborted)
+          setProgress({ percent, message: "Reading the open presentation…" });
+      });
+      if (!job.signal.aborted) await readDeck(file, job);
+    } catch (cause) {
+      if (!job.signal.aborted) {
+        setProgress(null);
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "The editor could not export this deck. Try uploading a .pptx.",
+        );
+      }
+    }
+  }
+
   function receiveFiles(files: FileList | null) {
     setDragging(false);
     if (!files?.length) return;
@@ -653,7 +692,9 @@ export default function App() {
         </div>
       </header>
       <main>
-        <section className={`hero ${slides ? "hero-hidden" : ""}`}>
+        <section
+          className={`hero ${slides || import.meta.env.VITE_INTEGRATION || new URLSearchParams(location.search).has("integration") ? "hero-hidden" : ""}`}
+        >
           <div className="hero-copy">
             <span className="eyebrow">
               <span className="status-dot" /> BIG IDEAS DESERVE BETTER SLIDES
@@ -692,6 +733,14 @@ export default function App() {
               YOUR PRIVATE DECK WORKSPACE
             </span>
           </div>
+          {!slides && (
+            <EditorScan
+              scope={scope}
+              onScope={setScope}
+              onScan={(host) => void scanOpenDeck(host)}
+              busy={!!progress}
+            />
+          )}
           {slides ? (
             <ExtractedDeck
               key={filename}
@@ -843,24 +892,26 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                <div className="sample-prompt">
-                  <span>No deck handy?</span>
-                  <button
-                    className="text-button"
-                    disabled={!!progress}
-                    onClick={() => void openFile(undefined, true)}
-                  >
-                    Try our sample <Icon name="arrow" size={14} />
-                  </button>
-                  <a
-                    className="sample-download"
-                    href={`${import.meta.env.BASE_URL}sample.pptx`}
-                    download
-                    aria-label="Download the sample PowerPoint"
-                  >
-                    <Icon name="download" size={15} />
-                  </a>
-                </div>
+                {import.meta.env.VITE_INTEGRATION !== "canva" && (
+                  <div className="sample-prompt">
+                    <span>No deck handy?</span>
+                    <button
+                      className="text-button"
+                      disabled={!!progress}
+                      onClick={() => void openFile(undefined, true)}
+                    >
+                      Try our sample <Icon name="arrow" size={14} />
+                    </button>
+                    <a
+                      className="sample-download"
+                      href={`${import.meta.env.BASE_URL}sample.pptx`}
+                      download
+                      aria-label="Download the sample PowerPoint"
+                    >
+                      <Icon name="download" size={15} />
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           )}
